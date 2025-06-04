@@ -7,101 +7,120 @@ import sounddevice as sd
 import soundfile as sf
 import numpy as np
 from playsound import playsound
+import os
+import sys
 
+audio_data = None
+sample_rate = None
+is_playing = False
 
-class MusicPlayer:
-    def __init__(self, file_path):
-        self.file_path = file_path
-        self.data, self.fs = sf.read(file_path, dtype='float32')
-        if len(self.data.shape) == 1:
-            self.data = np.column_stack((self.data, self.data))
-        self.is_playing = False
+# Получает абсолютный путь для ресурсов в EXE
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS  # sys._MEIPASS (специальная папка PyInstaller для ресурсов в EXE)
+    except AttributeError:
+        base_path = os.path.abspath(".")  # используем текущую директорию
+    path = os.path.join(base_path, relative_path) # соединение базового путя с относительным
+    return path
 
-    def play(self):
-        if not self.is_playing:
-            self.is_playing = True
-            Thread(target=self._play_loop, daemon=True).start()
+# Загрузка аудиофайла и возвращение данных и частоты дискретизации
+def load_audiofile(file_path):
+    global audio_data, sample_rate
+    data, fs = sf.read(file_path, dtype='float32')
+    if len(data.shape) == 1:
+        data = np.column_stack((data, data))
+    audio_data = data
+    sample_rate = fs
+    return data, fs
 
-    def _play_loop(self):
-        sd.play(self.data, self.fs, loop=True)
-        while self.is_playing:
-            sd.sleep(100)
+# Функция для воспроизведения в отдельном потоке
+def _play_loop():
+    global is_playing
+    sd.play(audio_data, sample_rate, loop=True)
+    while is_playing:
+        sd.sleep(100)
 
-    def stop(self):
-        self.is_playing = False
-        sd.stop()
+# Воспроизведение фоновой музыки
+def play_audio(file_path=None):
+    global is_playing
+    if file_path:
+        load_audiofile(file_path)
 
+    if not is_playing and audio_data is not None:
+        is_playing = True
+        Thread(target=_play_loop, daemon=True).start()
+
+# Остановка воспроизведения фоновой музыки
+def stop_audio():
+    global is_playing
+    is_playing = False
+    sd.stop()
+
+# Переключение состояния воспроизведения
 def toggle_music():
-    if player.is_playing:
-        player.stop()
+    if is_playing:
+        stop_audio()
     else:
-        player.play()
-
+        play_audio()
 
 # Инициализация плеера
-player = MusicPlayer("music_for_main.mp3")
-player.play()
+music_path = resource_path(os.path.join("musics", "music.mp3"))
+play_audio(music_path)
+
 
 def play_step_sound():
-    Thread(target=lambda: playsound("steps.mp3"), daemon=True).start()
+    sound_step = resource_path(os.path.join("musics", "steps.mp3"))
+    Thread(target=lambda: playsound(sound_step), daemon=True).start()
 
 def play_pushing_box():
-    Thread(target=lambda: playsound("pushing_box.mp3"), daemon=True).start()
+    sound_pushing_box = resource_path(os.path.join("musics", "pushing_box.mp3"))
+    Thread(target=lambda: playsound(sound_pushing_box), daemon=True).start()
 
-# Обновляем отображение рекордов при открытии окна
+# Обновление отображения рекордов при открытии окна
 def show_records_screen():
     main_root.withdraw()
     records_root.deiconify()
     update_records_display()
 
-# Добавляем в начало кода (после импортов) функцию для работы с рекордами
+# Открытие json файла
 def load_records():
-    with open('records.json', 'r') as f:
+    record_file = resource_path(os.path.join("records.json"))
+    with open(record_file, 'r') as rec:
         try:
-            return json.load(f)
+            return json.load(rec)
         except json.JSONDecodeError:
             return {"level1": [], "level2": [], "level3": []}
 
-
 def save_records(records):
-    with open('records.json', 'w') as rec:
+    record_file = resource_path(os.path.join("records.json"))
+    with open(record_file, 'w') as rec:
         json.dump(records, rec, indent=4)
-
 
 def add_record(level, nickname, steps):
     records = load_records()
     level_key = f"level{level}"
-
     # Добавляем новый рекорд
     records[level_key].append({"nickname": nickname, "steps": steps})
-
     # Сортируем по количеству шагов (чем меньше, тем лучше)
     records[level_key].sort(key=lambda x: x["steps"])
-
     # Оставляем только топ-3
     records[level_key] = records[level_key][:3]
-
     save_records(records)
     update_records_display()
 
-
 def update_records_display():
     records = load_records()
-
     # Очищаем старые записи
     for i in range(1, 4):
         for j in range(1, 4):
             canvas_r.delete(f"record_level{i}_pos{j}")
-
     # Добавляем новые записи
     for level in range(1, 4):
         level_key = f"level{level}"
         level_records = records.get(level_key, [])
-
         for i, record in enumerate(level_records):
             nickname = record["nickname"]
             steps = record["steps"]
-
             # Позиционирование зависит от уровня
             if level == 1:
                 x_pos = 190
@@ -109,17 +128,14 @@ def update_records_display():
                 x_pos = 520
             else:
                 x_pos = 840
-
             y_pos = 220 + i * 100
-
             # Отображаем запись
             canvas_r.create_text(
                 x_pos, y_pos + 25,
                 text=f"{nickname}: {steps} шагов",
                 font=('Arial', 12),
                 fill='#000000',
-                tags=f"record_level{level}_pos{i + 1}"
-            )
+                tags=f"record_level{level}_pos{i + 1}")
 
 # Основные функции игры
 def level_1():
@@ -177,13 +193,13 @@ def game_menu():
     main_root.withdraw()
     game_root.deiconify()
 
-
 def exit_gmenu():
     game_root.withdraw()
     main_root.deiconify()
 
 
-def exit_menu():
+def close_all_windows():
+    stop_audio()
     main_root.destroy()
     for window in [rules_root, game_root, records_root, nick_root, lvl1, lvl2, lvl3]:
         try:
@@ -191,16 +207,16 @@ def exit_menu():
         except:
             continue
 
+def exit_menu():
+    close_all_windows()
 
 def exit_rgames():
     rules_root.withdraw()
     main_root.deiconify()
 
-
 def rules_games():
     main_root.withdraw()
     rules_root.deiconify()
-
 
 def exit_records():
     records_root.withdraw()
@@ -210,21 +226,16 @@ nick_level1 = None
 nick_level2 = None
 nick_level3 = None
 
-
 def input_nick(level):
-
     def save_nick():
         nonlocal level
         nickname = nick.get().strip()
-
         if not nickname:
             messagebox.showerror("Ошибка", "Необходимо ввести никнейм!")
             return
-
         if len(nickname) >= 10:
             messagebox.showerror("Ошибка", "Никнейм не должен превышать 10 символов!")
             return
-
         # Сохраняем ник для соответствующего уровня
         if level == 1:
             global nick_level1
@@ -238,7 +249,6 @@ def input_nick(level):
             global nick_level3
             nick_level3 = nickname
             nick_label3.config(text=f"Игрок: {nickname}")
-
         nick_root.destroy()
 
     nick_root = Toplevel()
@@ -249,30 +259,24 @@ def input_nick(level):
 
     # Блокируем закрытие окна через Alt+F4
     nick_root.protocol("WM_DELETE_WINDOW", lambda: None)
-
-
-
     border_frame = Frame(nick_root, bg='#000000', bd=1)
     border_frame.pack(fill='both', expand=True)
     main_frame = Frame(border_frame, bg='#d8e6de')
     main_frame.pack(fill='both', expand=True, padx=2, pady=2)
-
     Label(nick_root, text='Введите имя',
           background='#d8e6de',
           foreground='#000000',
           font=('Arial', 20)).place(x=115, y=10)
-
     nick = Entry(nick_root, width=50)
     nick.place(x=50, y=100)
-
     Button(nick_root, text='OK',
            width=10,
            background='#cc5b3f',
            foreground='#000000',
            command=save_nick).place(x=165, y=150)
-
     nick_root.grab_set()
-    nick_root.focus_set()  # Устанавливаем фокус на окно
+    nick_root.focus_set()
+    nick.focus()
     nick_root.wait_window()
 
 
@@ -282,6 +286,7 @@ main_root.title("Sokoban")
 main_root.geometry("1000x700+230+20")
 main_root.configure(bg='#d8e6de')
 main_root.resizable(False, False)
+main_root.protocol("WM_DELETE_WINDOW", close_all_windows)
 
 SOKOBAN = Label(main_root, text='SOKOBAN',
                 font=("Arial", 52),
@@ -324,6 +329,7 @@ rules_root.title('SOKOBAN')
 rules_root.geometry("1000x700+230+20")
 rules_root.configure(bg='#d8e6de')
 rules_root.resizable(False, False)
+rules_root.protocol("WM_DELETE_WINDOW", close_all_windows)
 
 Button(rules_root, text='НАЗАД',
        width=30, height=2,
@@ -338,9 +344,12 @@ Label(rules_root, text='Правила игры',
 
 rules_text = [
     '   Цель игры: необходимо поставить все ящики в отмеченные точки.   ',
+    '',
     '    Игровое поле представляет собой склад, на котором находится    ',
     '                  кладовщик, стены (препятствия) и ящики.           ',
+    '',
     ' Головоломка решена, когда все коробки занимают места для хранения. ',
+    '',
     'Игрок оказывается в безвыходной ситуации (ситуации поражения), если',
     'ящик задвинут в угол, два ящика располагаются рядом друг с другом у',
     '         стены, если четыре ящика образуют квадрат 2 на 2.         '
@@ -358,6 +367,7 @@ records_root.title('SOKOBAN')
 records_root.geometry('1000x700+230+20')
 records_root.configure(bg='#d8e6de')
 records_root.resizable(False, False)
+records_root.protocol("WM_DELETE_WINDOW", close_all_windows)
 
 canvas_r = Canvas(records_root, width=1000, height=700, bg='#d8e6de')
 canvas_r.place(x=0, y=0)
@@ -403,15 +413,15 @@ Button(records_root, text='НАЗАД',
        command=exit_records).place(x=20, y=620)
 
 
-texture1 = Image.open("box1.jpg")
+texture1 = Image.open(resource_path(os.path.join("textures", "box1.jpg")))
 texture1 = texture1.resize((100, 100))
 texture_photo1 = ImageTk.PhotoImage(texture1)
 
-texture2 = Image.open("box2.jpg")
+texture2 = Image.open(resource_path(os.path.join("textures", "box2.jpg")))
 texture2 = texture2.resize((100, 100))
 texture_photo2 = ImageTk.PhotoImage(texture2)
 
-texture3 = Image.open("box3.jpg")
+texture3 = Image.open(resource_path(os.path.join("textures", "box3.jpg")))
 texture3 = texture3.resize((100, 100))
 texture_photo3 = ImageTk.PhotoImage(texture3)
 
@@ -421,6 +431,7 @@ game_root.title('SOKOBAN')
 game_root.geometry('1000x700+230+20')
 game_root.configure(bg='#d8e6de')
 game_root.resizable(False, False)
+game_root.protocol("WM_DELETE_WINDOW", close_all_windows)
 
 Label(game_root, text='ВЫБОР УРОВНЯ',
       font=("Arial", 52),
@@ -453,17 +464,17 @@ Button(game_root, text='НАЗАД',
        command=exit_gmenu).place(x=20, y=620)
 
 def load_person_image():
-    image_pers = Image.open("person.jpg")
+    image_pers = Image.open(resource_path(os.path.join("textures", "person.jpg")))
     image_pers = image_pers.resize((50, 50))
     return ImageTk.PhotoImage(image_pers)
 
 def load_stat_obj_image():
-    image_stat_obj = Image.open("static_obj.jpg")
+    image_stat_obj = Image.open(resource_path(os.path.join("textures", "static_obj.jpg")))
     image_stat_obj = image_stat_obj.resize((50, 50))
     return ImageTk.PhotoImage(image_stat_obj)
 
 def load_move_obj_image():
-    image_move_obj = Image.open("box.jpg")
+    image_move_obj = Image.open(resource_path(os.path.join("textures", "move_box.jpg")))
     image_move_obj = image_move_obj.resize((50, 50))
     return ImageTk.PhotoImage(image_move_obj)
 
@@ -488,7 +499,6 @@ class Basic_lvl:
                                  fg='#000000')
         self.steps_label.place(x=800, y=100)
 
-        # Кнопки
         repl = Button(self.master, text='ЗАНОВО', width=20, height=2,
                       background='#cc5b3f', foreground='#000000',
                       command=self.replace)
@@ -500,7 +510,6 @@ class Basic_lvl:
         back.place(x=20, y=620)
 
         self.master.bind("<KeyPress>", self.move)
-        self.level_completed = False
         self.static_objects = []
 
     def show_win_window(self, level_num, nick_var):
@@ -521,19 +530,15 @@ class Basic_lvl:
         # Создаем рамку с тенью
         border_frame = Frame(self.win_root, bg='black', bd=3)
         border_frame.pack(fill='both', expand=True, padx=3, pady=3)
-
         main_frame = Frame(border_frame, bg='#d8e6de')
         main_frame.pack(fill='both', expand=True, padx=1, pady=1)
-
         content = Frame(main_frame, bg='#d8e6de')
         content.pack(fill='both', expand=True, padx=20, pady=20)
 
         Label(content, text='ВЫ ВЫИГРАЛИ!', font=('Arial', 24, 'bold'),
               bg='#d8e6de', fg='#000000').pack(pady=(10, 20))
-
         Label(content, text=f"{self.steps} шагов", font=('Arial', 16),
               bg='#d8e6de', fg='#000000').pack()
-
         Button(content, text='OK', width=10, height=1,
                bg='#cc5b3f', fg='white', font=('Arial', 10, 'bold'),
                command=lambda: (
@@ -565,7 +570,6 @@ class Basic_lvl:
     def replace(self):
         self.steps = 0
         self.steps_label.config(text=f"{self.steps}")
-        self.level_completed = False
 
         # Включение кнопок и привязка клавиш
         for child in self.master.winfo_children():
@@ -580,7 +584,15 @@ class Basic_lvl:
 
     #Метод для движения, должен быть переопределен в дочерних классах
     def move(self, event):
-        pass
+        dx, dy = 0, 0
+        if event.keysym == 'Left':
+            dx = -50
+        elif event.keysym == 'Right':
+            dx = 50
+        elif event.keysym == 'Up':
+            dy = -50
+        elif event.keysym == 'Down':
+            dy = 50
 
     #Метод для проверки победы, должен быть переопределен в дочерних классах
     def win_check(self):
@@ -601,7 +613,7 @@ class Level1(Basic_lvl):
             (0, 50), (0, 100), (0, 150), (0, 200), (0, 250), (0, 300), (0, 350),
             (350, 50), (350, 100), (350, 150), (350, 200), (350, 250), (350, 300), (350, 350),
             (50, 350), (100, 350), (150, 350), (200, 350), (250, 350), (300, 350), (250, 300),
-            (250, 250), (250, 200), (250, 150), (150, 50), (100, 50), (50, 50), (50, 100)
+            (250, 250), (250, 200), (250, 150), (150, 50), (100, 50), (50, 50)
         ]
 
         for x, y in wall_positions:
@@ -622,9 +634,6 @@ class Level1(Basic_lvl):
         exit_level1()
 
     def win_check(self):
-        if self.level_completed:
-            return
-
         # Получаем координаты всех ящиков и позиций
         boxes = [
             self.canvas.coords(self.move_object1),
@@ -639,19 +648,18 @@ class Level1(Basic_lvl):
         ]
 
         # Проверяем, находится ли каждый ящик на какой-либо позиции
-        boxes_on_spot = [False] * 3
+        count_boxes = 0
 
         for i, box in enumerate(boxes):
             box_x, box_y = box[0], box[1]
             for pos in positions:
                 pos_x, pos_y = pos[0], pos[1]
                 if abs(box_x - pos_x) < 5 and abs(box_y - pos_y) < 5:
-                    boxes_on_spot[i] = True
+                    count_boxes += 1
                     break
 
         # Если все три ящика на своих местах
-        if all(boxes_on_spot):
-            self.level_completed = True
+        if count_boxes == 3:
             self.show_win_window(1, nick_level1)
 
     def move(self, event):
@@ -688,7 +696,6 @@ class Level1(Basic_lvl):
             if abs(box_x - new_x) < 5 and abs(box_y - new_y) < 5:
                 new_box_x = box_x + dx
                 new_box_y = box_y + dy
-
                 if (not self.check_collision(new_box_x, new_box_y, new_box_x + 50, new_box_y + 50) and
                         not self.check_box_collision(box, new_box_x, new_box_y, boxes)):
                     self.canvas.move(box, dx, dy)
@@ -752,8 +759,6 @@ class Level2(Basic_lvl):
         exit_level2()
 
     def win_check(self):
-        if self.level_completed:
-            return
         # Получаем координаты всех позиций для ящиков
         positions = [
             self.canvas.coords(self.position1),
@@ -770,19 +775,18 @@ class Level2(Basic_lvl):
             self.canvas.coords(self.move_block4)
         ]
 
-        boxes_on_spot = [False] * 4
+        count_boxes = 0
 
         for i, box in enumerate(boxes):
             box_x, box_y = box[0], box[1]
             for pos in positions:
                 pos_x, pos_y = pos[0], pos[1]
                 if abs(box_x - pos_x) < 5 and abs(box_y - pos_y) < 5:
-                    boxes_on_spot[i] = True
+                    count_boxes += 1
                     break
 
         # Если все 4 ящика на своих местах
-        if all(boxes_on_spot):
-            self.level_completed = True
+        if count_boxes == 4:
             self.show_win_window(2, nick_level2)
 
     def move(self, event):
@@ -862,7 +866,8 @@ class Level3(Basic_lvl):
                           (350, 150), (350, 200), (350, 250), (350, 300), (350, 350),
                           (250, 350), (300, 350), (150, 350), (200, 350), (50, 350),
                           (100, 350), (0, 350), (0, 300), (0, 250), (0, 200), (0, 150),
-                          (0, 100), (0, 50), (0, 100), (100, 300), (100, 250)]
+                          (0, 100), (0, 50), (0, 100), (100, 300), (100, 250), (200, 50),
+                          (250, 50), (300, 50), (200, 100), (250, 100), (300, 100), (300, 300)]
 
         for x, y in wall_positions:
             obj = self.canvas.create_image(x, y, image=self.static_obj_t, anchor='nw')
@@ -886,8 +891,6 @@ class Level3(Basic_lvl):
         exit_lvl3()
 
     def win_check(self):
-        if self.level_completed:
-            return
         # Получаем координаты всех позиций для ящиков
         positions = [
             self.canvas.coords(self.position1),
@@ -921,7 +924,6 @@ class Level3(Basic_lvl):
 
         # Если все 6 ящиков на своих местах
         if correct_boxes == 6:
-            self.level_completed = True
             self.show_win_window(3, nick_level3)
 
     def move(self, event):
@@ -996,6 +998,7 @@ lvl1.title('SOKOBAN')
 lvl1.geometry('1000x700+230+20')
 lvl1.configure(bg='#d8e6de')
 lvl1.resizable(False, False)
+lvl1.protocol("WM_DELETE_WINDOW", close_all_windows)
 
 Label(lvl1, text='Уровень 1',
       font=('Arial', 24),
@@ -1014,6 +1017,7 @@ lvl2.title('SOKOBAN')
 lvl2.geometry('1000x700+230+20')
 lvl2.configure(bg='#d8e6de')
 lvl2.resizable(False, False)
+lvl2.protocol("WM_DELETE_WINDOW", close_all_windows)
 
 Label(lvl2, text='Уровень 2',
       font=('Arial', 24),
@@ -1032,6 +1036,7 @@ lvl3.title('SOKOBAN')
 lvl3.geometry('1000x700+230+20')
 lvl3.configure(bg='#d8e6de')
 lvl3.resizable(False, False)
+lvl3.protocol("WM_DELETE_WINDOW", close_all_windows)
 Label(lvl3, text='Уровень 3',
       font=('Arial', 24),
       background='#d8e6de',
