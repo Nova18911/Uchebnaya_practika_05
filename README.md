@@ -1,1 +1,0 @@
-# Uchebnaya_practika_0.5
