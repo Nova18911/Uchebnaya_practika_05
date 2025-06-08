@@ -63,11 +63,6 @@ def toggle_music():
     else:
         play_audio()
 
-# Инициализация плеера
-music_path = resource_path(os.path.join("musics", "music.mp3"))
-play_audio(music_path)
-
-
 def play_step_sound():
     sound_step = resource_path(os.path.join("musics", "steps.mp3"))
     Thread(target=lambda: playsound(sound_step), daemon=True).start()
@@ -76,11 +71,6 @@ def play_pushing_box():
     sound_pushing_box = resource_path(os.path.join("musics", "pushing_box.mp3"))
     Thread(target=lambda: playsound(sound_pushing_box), daemon=True).start()
 
-# Обновление отображения рекордов при открытии окна
-def show_records_screen():
-    main_root.withdraw()
-    records_root.deiconify()
-    update_records_display()
 
 # Открытие json файла
 def load_records():
@@ -134,8 +124,7 @@ def update_records_display():
                 x_pos, y_pos + 25,
                 text=f"{nickname}: {steps} шагов",
                 font=('Arial', 12),
-                fill='#000000',
-                tags=f"record_level{level}_pos{i + 1}")
+                fill='#000000')
 
 # Основные функции игры
 def level_1():
@@ -164,7 +153,6 @@ def level_2():
     if nick_level2:
         nick_label2.config(text=f"Игрок: {nick_level2}")
         app2.replace()
-
 
 def exit_level2():
     global nick_level2
@@ -197,7 +185,6 @@ def exit_gmenu():
     game_root.withdraw()
     main_root.deiconify()
 
-
 def close_all_windows():
     stop_audio()
     main_root.destroy()
@@ -207,9 +194,6 @@ def close_all_windows():
         except:
             continue
 
-def exit_menu():
-    close_all_windows()
-
 def exit_rgames():
     rules_root.withdraw()
     main_root.deiconify()
@@ -217,6 +201,12 @@ def exit_rgames():
 def rules_games():
     main_root.withdraw()
     rules_root.deiconify()
+
+# Обновление отображения рекордов при открытии окна
+def show_records_screen():
+    main_root.withdraw()
+    records_root.deiconify()
+    update_records_display()
 
 def exit_records():
     records_root.withdraw()
@@ -250,14 +240,11 @@ def input_nick(level):
             nick_level3 = nickname
             nick_label3.config(text=f"Игрок: {nickname}")
         nick_root.destroy()
-
     nick_root = Toplevel()
     nick_root.geometry('400x200+500+300')
     nick_root.configure(bg='#d8e6de')
     nick_root.resizable(False, False)
     nick_root.overrideredirect(True)
-
-    # Блокируем закрытие окна через Alt+F4
     nick_root.protocol("WM_DELETE_WINDOW", lambda: None)
     border_frame = Frame(nick_root, bg='#000000', bd=1)
     border_frame.pack(fill='both', expand=True)
@@ -279,6 +266,422 @@ def input_nick(level):
     nick.focus()
     nick_root.wait_window()
 
+def load_person_image():
+    image_pers = Image.open(resource_path(os.path.join("textures", "person.jpg")))
+    image_pers = image_pers.resize((50, 50))
+    return ImageTk.PhotoImage(image_pers)
+
+def load_stat_obj_image():
+    image_stat_obj = Image.open(resource_path(os.path.join("textures", "static_obj.jpg")))
+    image_stat_obj = image_stat_obj.resize((50, 50))
+    return ImageTk.PhotoImage(image_stat_obj)
+
+def load_move_obj_image():
+    image_move_obj = Image.open(resource_path(os.path.join("textures", "move_box.jpg")))
+    image_move_obj = image_move_obj.resize((50, 50))
+    return ImageTk.PhotoImage(image_move_obj)
+
+class Basic_lvl:
+    def __init__(self, master):
+        self.master = master
+        self.canvas = Canvas(master, bg='#fff0d8', width=400, height=400)
+        self.canvas.place(x=50, y=170)
+        self.pers_image = load_person_image()
+        self.static_obj_t = load_stat_obj_image()
+        self.move_obj_t = load_move_obj_image()
+        self.steps = 0
+        Label(master, text='Шаги', font=('Arial', 24),
+                             bg='#d8e6de', fg='#000000').place(x=700, y=100)
+        self.steps_label = Label(master, text=f"{self.steps}",
+                                 font=('Arial', 24),
+                                 bg='#cc5b3f',
+                                 fg='#000000')
+        self.steps_label.place(x=800, y=100)
+        repl = Button(self.master, text='ЗАНОВО', width=20, height=2,
+                      background='#cc5b3f', foreground='#000000',
+                      command=self.replace)
+        repl.place(x=50, y=40)
+        back = Button(self.master, text='НАЗАД', width=30, height=2,
+                      background='#cc5b3f', foreground='#000000',
+                      command=lambda: (self.exit_level(), self.replace()))
+        back.place(x=20, y=620)
+        self.master.bind("<KeyPress>", self.move)
+        self.static_objects = []
+
+    def show_win_window(self, level_num, nick_var):
+        self.master.unbind("<KeyPress>")
+        self.win_root = Toplevel()
+        self.win_root.title('SOKOBAN')
+        self.win_root.geometry('400x250+500+300')
+        self.win_root.resizable(False, False)
+        self.win_root.configure(bg='#d8e6de')
+        self.win_root.overrideredirect(True)
+        self.win_root.grab_set()
+        # Создаем рамку с тенью
+        border_frame = Frame(self.win_root, bg='black', bd=3)
+        border_frame.pack(fill='both', expand=True, padx=3, pady=3)
+        main_frame = Frame(border_frame, bg='#d8e6de')
+        main_frame.pack(fill='both', expand=True, padx=1, pady=1)
+        content = Frame(main_frame, bg='#d8e6de')
+        content.pack(fill='both', expand=True, padx=20, pady=20)
+        Label(content, text='ВЫ ВЫИГРАЛИ!', font=('Arial', 24, 'bold'),
+              bg='#d8e6de', fg='#000000').pack(pady=(10, 20))
+        Label(content, text=f"{self.steps} шагов", font=('Arial', 16),
+              bg='#d8e6de', fg='#000000').pack()
+        Button(content, text='OK', width=10, height=1,
+               bg='#cc5b3f', fg='white', font=('Arial', 10, 'bold'),
+               command=lambda: (
+                   add_record(level_num, nick_var, self.steps),
+                   self.exit_level(),
+                   self.win_root.destroy(),
+                   self.replace()
+               )).pack(pady=20)
+
+    # проверка столкновения со стенами
+    def check_collision(self, x1, y1, x2, y2):
+        for obj in self.static_objects:
+            wall_x1, wall_y1, wall_x2, wall_y2 = self.canvas.bbox(obj)
+            if not (x2 <= wall_x1 or x1 >= wall_x2 or y2 <= wall_y1 or y1 >= wall_y2):
+                return True
+        return False
+
+    # проверка столкновения с ящиками
+    def check_box_collision(self, current_box, x1, y1, all_boxes):
+        for box in all_boxes:
+            if box == current_box:
+                continue
+            box_x1, box_y1, box_x2, box_y2 = self.canvas.bbox(box)
+            if not (x1 + 50 <= box_x1 or x1 >= box_x2 or y1 + 50 <= box_y1 or y1 >= box_y2):
+                return True
+        return False
+
+    #сброс уровня
+    def replace(self):
+        self.steps = 0
+        self.steps_label.config(text=f"{self.steps}")
+        self.master.bind("<KeyPress>", self.move)
+
+    #Метод для выхода с уровня, должен быть переопределен в дочерних классах
+    def exit_level(self):
+        pass
+
+    #Метод для движения, должен быть переопределен в дочерних классах
+    def move(self, event):
+        pass
+
+    #Метод для проверки победы, должен быть переопределен в дочерних классах
+    def win_check(self):
+        pass
+
+class Level1(Basic_lvl):
+    def __init__(self, master):
+        super().__init__(master)
+        self.x1 = 150
+        self.y1 = 150
+        self.pers = self.canvas.create_image(self.x1, self.y1, image=self.pers_image, anchor='nw')
+        wall_positions = [(0, 0), (50, 0), (100, 0), (150, 0), (200, 0), (250, 0), (300, 0), (350, 0),
+            (0, 50), (0, 100), (0, 150), (0, 200), (0, 250), (0, 300), (0, 350),
+            (350, 50), (350, 100), (350, 150), (350, 200), (350, 250), (350, 300), (350, 350),
+            (50, 350), (100, 350), (150, 350), (200, 350), (250, 350), (300, 350), (250, 300),
+            (250, 250), (250, 200), (250, 150), (150, 50), (100, 50), (50, 50)]
+        for x, y in wall_positions:
+            obj = self.canvas.create_image(x, y, image=self.static_obj_t, anchor='nw')
+            self.static_objects.append(obj)
+
+        self.move_object1 = self.canvas.create_image(200, 150, image=self.move_obj_t, anchor='nw')
+        self.move_object2 = self.canvas.create_image(100, 200, image=self.move_obj_t, anchor='nw')
+        self.move_object3 = self.canvas.create_image(100, 250, image=self.move_obj_t, anchor='nw')
+
+        self.position1 = self.canvas.create_rectangle(50, 150, 100, 200, dash=2)
+        self.position2 = self.canvas.create_rectangle(50, 250, 100, 300, dash=2)
+        self.position3 = self.canvas.create_rectangle(300, 300, 350, 350, dash=2)
+
+    def exit_level(self):
+        exit_level1()
+
+    def win_check(self):
+        boxes = [self.canvas.coords(self.move_object1),
+            self.canvas.coords(self.move_object2),
+            self.canvas.coords(self.move_object3)]
+        positions = [self.canvas.coords(self.position1),
+            self.canvas.coords(self.position2),
+            self.canvas.coords(self.position3)]
+        count_boxes = 0
+        for i, box in enumerate(boxes):
+            box_x, box_y = box[0], box[1]
+            for pos in positions:
+                pos_x, pos_y = pos[0], pos[1]
+                if abs(box_x - pos_x) < 5 and abs(box_y - pos_y) < 5:
+                    count_boxes += 1
+                    break
+        if count_boxes == 3:
+            self.show_win_window(1, nick_level1)
+
+    def move(self, event):
+        global nick_level1
+        if nick_level1 is None or nick_level1 == "":
+            messagebox.showwarning('Внимание', 'Введите сначала никнейм!')
+            return
+        dx, dy = 0, 0
+        if event.keysym == 'Left':
+            dx = -50
+        elif event.keysym == 'Right':
+            dx = 50
+        elif event.keysym == 'Up':
+            dy = -50
+        elif event.keysym == 'Down':
+            dy = 50
+        # Новая позиция игрока
+        x, y = self.canvas.coords(self.pers)
+        new_x = x + dx
+        new_y = y + dy
+
+        if self.check_collision(new_x, new_y, new_x + 50, new_y + 50):
+            return
+
+        moved_boxes = []
+        boxes = [self.move_object1, self.move_object2, self.move_object3]
+        for box in boxes:
+            box_x, box_y = self.canvas.coords(box)[:2]
+            if abs(box_x - new_x) < 5 and abs(box_y - new_y) < 5:
+                new_box_x = box_x + dx
+                new_box_y = box_y + dy
+                if (not self.check_collision(new_box_x, new_box_y, new_box_x + 50, new_box_y + 50) and
+                        not self.check_box_collision(box, new_box_x, new_box_y, boxes)):
+                    self.canvas.move(box, dx, dy)
+                    if dx != 0 or dy != 0:
+                        play_pushing_box()
+                    moved_boxes.append(box)
+                else:
+                    return
+
+        self.canvas.move(self.pers, dx, dy)
+        if dx != 0 or dy != 0:
+            play_step_sound()
+            self.steps += 1
+            self.steps_label.config(text=f"{self.steps}")
+        self.win_check()
+
+    def replace(self):
+        super().replace()
+        self.canvas.coords(self.pers, self.x1, self.y1)
+        self.canvas.coords(self.move_object1, 200, 150)
+        self.canvas.coords(self.move_object2, 100, 200)
+        self.canvas.coords(self.move_object3, 100, 250)
+
+class Level2(Basic_lvl):
+    def __init__(self, master):
+        super().__init__(master)
+        self.x1 = 150
+        self.y1 = 150
+        self.pers = self.canvas.create_image(self.x1, self.y1, image=self.pers_image, anchor='nw')
+        wall_positions = [(0, 0), (50, 0), (100, 0), (150, 0), (200, 0),
+                          (250, 0), (300, 0), (350, 0), (350, 50), (350, 100),
+                          (350, 150), (350, 200), (350, 250), (350, 300), (350, 350),
+                          (250, 350), (300, 350), (150, 350), (200, 350), (50, 350),
+                          (100, 350), (0, 350), (0, 300), (0, 250), (0, 200), (0, 150),
+                          (0, 100), (0, 50), (150, 50), (200, 50), (250, 50), (300, 50),
+                          (200, 150), (200, 200), (150, 200), (250, 300), (300, 300)]
+        for x, y in wall_positions:
+            obj = self.canvas.create_image(x, y, image=self.static_obj_t, anchor='nw')
+            self.static_objects.append(obj)
+        self.move_block1 = self.canvas.create_image(150, 100, image=self.move_obj_t, anchor='nw')
+        self.move_block2 = self.canvas.create_image(250, 150, image=self.move_obj_t, anchor='nw')
+        self.move_block3 = self.canvas.create_image(100, 150, image=self.move_obj_t, anchor='nw')
+        self.move_block4 = self.canvas.create_image(150, 250, image=self.move_obj_t, anchor='nw')
+
+        self.position1 = self.canvas.create_rectangle(300, 100, 350, 150, outline='#464645', dash=2)
+        self.position2 = self.canvas.create_rectangle(50, 50, 100, 100, outline='#464645', dash=2)
+        self.position3 = self.canvas.create_rectangle(250, 100, 300, 150, outline='#464645', dash=2)
+        self.position4 = self.canvas.create_rectangle(150, 300, 200, 350, outline='#464645', dash=2)
+
+    def exit_level(self):
+        exit_level2()
+
+    def win_check(self):
+        positions = [self.canvas.coords(self.position1),
+            self.canvas.coords(self.position2),
+            self.canvas.coords(self.position3),
+            self.canvas.coords(self.position4)]
+        boxes = [self.canvas.coords(self.move_block1),
+            self.canvas.coords(self.move_block2),
+            self.canvas.coords(self.move_block3),
+            self.canvas.coords(self.move_block4)]
+        count_boxes = 0
+        for i, box in enumerate(boxes):
+            box_x, box_y = box[0], box[1]
+            for pos in positions:
+                pos_x, pos_y = pos[0], pos[1]
+                if abs(box_x - pos_x) < 5 and abs(box_y - pos_y) < 5:
+                    count_boxes += 1
+                    break
+        if count_boxes == 4:
+            self.show_win_window(2, nick_level2)
+
+    def move(self, event):
+        global nick_level2
+        if nick_level2 is None or nick_level2 == "":
+            messagebox.showwarning('Внимание', 'Введите сначала никнейм!')
+            return
+        dx, dy = 0, 0
+        if event.keysym == 'Left':
+            dx = -50
+        elif event.keysym == 'Right':
+            dx = 50
+        elif event.keysym == 'Up':
+            dy = -50
+        elif event.keysym == 'Down':
+            dy = 50
+        x, y = self.canvas.coords(self.pers)
+        new_x = x + dx
+        new_y = y + dy
+
+        if self.check_collision(new_x, new_y, new_x + 50, new_y + 50):
+            return
+        moved_boxes = []
+        boxes = [self.move_block1, self.move_block2, self.move_block3, self.move_block4]
+        for box in boxes:
+            box_x, box_y = self.canvas.coords(box)[:2]
+            if abs(box_x - new_x) < 5 and abs(box_y - new_y) < 5:
+                new_box_x = box_x + dx
+                new_box_y = box_y + dy
+                if (not self.check_collision(new_box_x, new_box_y, new_box_x + 50, new_box_y + 50) and
+                        not self.check_box_collision(box, new_box_x, new_box_y, boxes)):
+                    self.canvas.move(box, dx, dy)
+                    moved_boxes.append(box)
+                    if dx != 0 or dy != 0:
+                        play_pushing_box()
+                else:
+                    return
+
+        self.canvas.move(self.pers, dx, dy)
+        if dx != 0 or dy != 0:
+            play_step_sound()
+            self.steps += 1
+            self.steps_label.config(text=f"{self.steps}")
+        self.win_check()
+
+    def replace(self):
+        super().replace()
+        self.canvas.coords(self.pers, self.x1, self.y1)
+        self.canvas.coords(self.move_block1, 150, 100)
+        self.canvas.coords(self.move_block2, 250, 150)
+        self.canvas.coords(self.move_block3, 100, 150)
+        self.canvas.coords(self.move_block4, 150, 250)
+
+class Level3(Basic_lvl):
+    def __init__(self, master):
+        super().__init__(master)
+        self.x1 = 50
+        self.y1 = 50
+        self.pers = self.canvas.create_image(self.x1, self.y1, image=self.pers_image, anchor='nw')
+        wall_positions = [(0, 0), (50, 0), (100, 0), (150, 0), (200, 0),
+                          (250, 0), (300, 0), (350, 0), (350, 50), (350, 100),
+                          (350, 150), (350, 200), (350, 250), (350, 300), (350, 350),
+                          (250, 350), (300, 350), (150, 350), (200, 350), (50, 350),
+                          (100, 350), (0, 350), (0, 300), (0, 250), (0, 200), (0, 150),
+                          (0, 100), (0, 50), (0, 100), (100, 300), (100, 250), (200, 50),
+                          (250, 50), (300, 50), (200, 100), (250, 100), (300, 100), (300, 300)]
+        for x, y in wall_positions:
+            obj = self.canvas.create_image(x, y, image=self.static_obj_t, anchor='nw')
+            self.static_objects.append(obj)
+        self.move_block1 = self.canvas.create_image(100, 100, image=self.move_obj_t, anchor='nw')
+        self.move_block2 = self.canvas.create_image(100, 150, image=self.move_obj_t, anchor='nw')
+        self.move_block3 = self.canvas.create_image(150, 100, image=self.move_obj_t, anchor='nw')
+        self.move_block4 = self.canvas.create_image(200, 200, image=self.move_obj_t, anchor='nw')
+        self.move_block5 = self.canvas.create_image(200, 250, image=self.move_obj_t, anchor='nw')
+        self.move_block6 = self.canvas.create_image(250, 250, image=self.move_obj_t, anchor='nw')
+
+        self.position1 = self.canvas.create_rectangle(50, 300, 100, 350, outline='#464645', dash=2)
+        self.position2 = self.canvas.create_rectangle(150, 150, 200, 200, outline='#464645', dash=2)
+        self.position3 = self.canvas.create_rectangle(200, 150, 250, 200, outline='#464645', dash=2)
+        self.position4 = self.canvas.create_rectangle(150, 300, 200, 350, outline='#464645', dash=2)
+        self.position5 = self.canvas.create_rectangle(300, 200, 350, 250, outline='#464645', dash=2)
+        self.position6 = self.canvas.create_rectangle(300, 250, 350, 300, outline='#464645', dash=2)
+
+    def exit_level(self):
+        exit_lvl3()
+
+    def win_check(self):
+        positions = [self.canvas.coords(self.position1),
+            self.canvas.coords(self.position2),
+            self.canvas.coords(self.position3),
+            self.canvas.coords(self.position4),
+            self.canvas.coords(self.position5),
+            self.canvas.coords(self.position6)]
+        boxes = [self.canvas.coords(self.move_block1),
+            self.canvas.coords(self.move_block2),
+            self.canvas.coords(self.move_block3),
+            self.canvas.coords(self.move_block4),
+            self.canvas.coords(self.move_block5),
+            self.canvas.coords(self.move_block6)]
+        correct_boxes = 0
+        for box in boxes:
+            box_x, box_y = box[0], box[1]
+            for pos in positions:
+                pos_x, pos_y = pos[0], pos[1]
+                if abs(box_x - pos_x) < 5 and abs(box_y - pos_y) < 5:
+                    correct_boxes += 1
+                    break
+        if correct_boxes == 6:
+            self.show_win_window(3, nick_level3)
+
+    def move(self, event):
+        global nick_level3
+        if nick_level3 is None or nick_level3 == "":
+            messagebox.showwarning('Внимание', 'Введите сначала никнейм!')
+            return
+        dx, dy = 0, 0
+        if event.keysym == 'Left':
+            dx = -50
+        elif event.keysym == 'Right':
+            dx = 50
+        elif event.keysym == 'Up':
+            dy = -50
+        elif event.keysym == 'Down':
+            dy = 50
+        x, y = self.canvas.coords(self.pers)
+        new_x = x + dx
+        new_y = y + dy
+
+        if self.check_collision(new_x, new_y, new_x + 50, new_y + 50):
+            return
+        moved_boxes = []
+        boxes = [self.move_block1, self.move_block2, self.move_block3,
+                 self.move_block4, self.move_block5, self.move_block6]
+        for box in boxes:
+            box_x, box_y = self.canvas.coords(box)[:2]
+            if abs(box_x - new_x) < 5 and abs(box_y - new_y) < 5:
+                new_box_x = box_x + dx
+                new_box_y = box_y + dy
+                if (not self.check_collision(new_box_x, new_box_y, new_box_x + 50, new_box_y + 50) and
+                        not self.check_box_collision(box, new_box_x, new_box_y, boxes)):
+                    self.canvas.move(box, dx, dy)
+                    if dx != 0 or dy != 0:
+                        play_pushing_box()
+                    moved_boxes.append(box)
+                else:
+                    return
+        self.canvas.move(self.pers, dx, dy)
+        if dx != 0 or dy != 0:
+            play_step_sound()
+            self.steps += 1
+            self.steps_label.config(text=f"{self.steps}")
+        self.win_check()
+
+    def replace(self):
+        super().replace()
+        self.canvas.coords(self.pers, self.x1, self.y1)
+        self.canvas.coords(self.move_block1, 100, 100)
+        self.canvas.coords(self.move_block2, 100, 150)
+        self.canvas.coords(self.move_block3, 150, 100)
+        self.canvas.coords(self.move_block4, 200, 200)
+        self.canvas.coords(self.move_block5, 200, 250)
+        self.canvas.coords(self.move_block6, 250, 250)
+
+# Инициализация плеера
+music_path = resource_path(os.path.join("musics", "music.mp3"))
+play_audio(music_path)
 
 # Главное окно
 main_root = Tk()
@@ -286,13 +689,15 @@ main_root.title("Sokoban")
 main_root.geometry("1000x700+230+20")
 main_root.configure(bg='#d8e6de')
 main_root.resizable(False, False)
+main_root.bind("<Alt-F4>", lambda e: close_all_windows())
 main_root.protocol("WM_DELETE_WINDOW", close_all_windows)
-
-SOKOBAN = Label(main_root, text='SOKOBAN',
+main_root.wm_attributes("-topmost", True)  # Временно делаем окно поверх всех
+main_root.wm_attributes("-topmost", False)  # Возвращаем обратно
+main_root.focus_force()  # Принудительно фокусируем окно
+Label(main_root, text='SOKOBAN',
                 font=("Arial", 52),
                 background="#d8e6de",
-                foreground="#1E1E1E")
-SOKOBAN.place(x=320, y=50)
+                foreground="#1E1E1E").place(x=320, y=50)
 
 Button(main_root, text="НАЧАТЬ",
        width=80, height=3,
@@ -316,7 +721,7 @@ Button(main_root, text="ВЫХОД",
        width=80, height=3,
        background='#cc5b3f',
        foreground='#000000',
-       command=exit_menu).place(x=200, y=480)
+       command=close_all_windows).place(x=200, y=480)
 
 Button(main_root, text='🔊',
        font=('Arial, 20'),
@@ -330,6 +735,7 @@ rules_root.geometry("1000x700+230+20")
 rules_root.configure(bg='#d8e6de')
 rules_root.resizable(False, False)
 rules_root.protocol("WM_DELETE_WINDOW", close_all_windows)
+rules_root.bind("<Alt-F4>", lambda e: close_all_windows())
 
 Button(rules_root, text='НАЗАД',
        width=30, height=2,
@@ -368,6 +774,7 @@ records_root.geometry('1000x700+230+20')
 records_root.configure(bg='#d8e6de')
 records_root.resizable(False, False)
 records_root.protocol("WM_DELETE_WINDOW", close_all_windows)
+records_root.bind("<Alt-F4>", lambda e: close_all_windows())
 
 canvas_r = Canvas(records_root, width=1000, height=700, bg='#d8e6de')
 canvas_r.place(x=0, y=0)
@@ -404,15 +811,11 @@ canvas_r.create_text(710,450, text='3', font=('Arial', 12), fill='#000000')
 canvas_r.create_rectangle(750,220,970,270, fill='#d8e6de', outline='#843900')
 canvas_r.create_rectangle(750,320,970,370, fill='#d8e6de', outline='#843900')
 canvas_r.create_rectangle(750,420,970,470, fill='#d8e6de', outline='#843900')
-
-
 Button(records_root, text='НАЗАД',
        width=30, height=2,
        background='#cc5b3f',
        foreground='#000000',
        command=exit_records).place(x=20, y=620)
-
-
 texture1 = Image.open(resource_path(os.path.join("textures", "box1.jpg")))
 texture1 = texture1.resize((100, 100))
 texture_photo1 = ImageTk.PhotoImage(texture1)
@@ -432,6 +835,7 @@ game_root.geometry('1000x700+230+20')
 game_root.configure(bg='#d8e6de')
 game_root.resizable(False, False)
 game_root.protocol("WM_DELETE_WINDOW", close_all_windows)
+game_root.bind("<Alt-F4>", lambda e: close_all_windows())
 
 Label(game_root, text='ВЫБОР УРОВНЯ',
       font=("Arial", 52),
@@ -443,7 +847,6 @@ Button(game_root,
        image=texture_photo1,
        foreground='#000000',
        command=lambda: level_1()).place(x=250, y=350)
-
 
 Button(game_root, text='2',
        width=100, height=100,
@@ -463,535 +866,6 @@ Button(game_root, text='НАЗАД',
        foreground='#000000',
        command=exit_gmenu).place(x=20, y=620)
 
-def load_person_image():
-    image_pers = Image.open(resource_path(os.path.join("textures", "person.jpg")))
-    image_pers = image_pers.resize((50, 50))
-    return ImageTk.PhotoImage(image_pers)
-
-def load_stat_obj_image():
-    image_stat_obj = Image.open(resource_path(os.path.join("textures", "static_obj.jpg")))
-    image_stat_obj = image_stat_obj.resize((50, 50))
-    return ImageTk.PhotoImage(image_stat_obj)
-
-def load_move_obj_image():
-    image_move_obj = Image.open(resource_path(os.path.join("textures", "move_box.jpg")))
-    image_move_obj = image_move_obj.resize((50, 50))
-    return ImageTk.PhotoImage(image_move_obj)
-
-
-class Basic_lvl:
-    def __init__(self, master):
-        self.master = master
-        self.canvas = Canvas(master, bg='#fff0d8', width=400, height=400)
-        self.canvas.place(x=50, y=170)
-        self.pers_image = load_person_image()
-        self.static_obj_t = load_stat_obj_image()
-        self.move_obj_t = load_move_obj_image()
-
-        self.steps = 0
-        self.steps_l = Label(master, text='Шаги', font=('Arial', 24),
-                             bg='#d8e6de', fg='#000000')
-        self.steps_l.place(x=700, y=100)
-
-        self.steps_label = Label(master, text=f"{self.steps}",
-                                 font=('Arial', 24),
-                                 bg='#cc5b3f',
-                                 fg='#000000')
-        self.steps_label.place(x=800, y=100)
-
-        repl = Button(self.master, text='ЗАНОВО', width=20, height=2,
-                      background='#cc5b3f', foreground='#000000',
-                      command=self.replace)
-        repl.place(x=50, y=40)
-
-        back = Button(self.master, text='НАЗАД', width=30, height=2,
-                      background='#cc5b3f', foreground='#000000',
-                      command=lambda: (self.exit_level(), self.replace()))
-        back.place(x=20, y=620)
-
-        self.master.bind("<KeyPress>", self.move)
-        self.static_objects = []
-
-    def show_win_window(self, level_num, nick_var):
-        # Отключаем кнопки
-        for child in self.master.winfo_children():
-            if isinstance(child, Button):
-                child.config(state=DISABLED)
-
-        self.master.unbind("<KeyPress>")
-
-        self.win_root = Toplevel()
-        self.win_root.title('SOKOBAN')
-        self.win_root.geometry('400x250+500+300')
-        self.win_root.resizable(False, False)
-        self.win_root.configure(bg='#d8e6de')
-        self.win_root.overrideredirect(True)
-
-        # Создаем рамку с тенью
-        border_frame = Frame(self.win_root, bg='black', bd=3)
-        border_frame.pack(fill='both', expand=True, padx=3, pady=3)
-        main_frame = Frame(border_frame, bg='#d8e6de')
-        main_frame.pack(fill='both', expand=True, padx=1, pady=1)
-        content = Frame(main_frame, bg='#d8e6de')
-        content.pack(fill='both', expand=True, padx=20, pady=20)
-
-        Label(content, text='ВЫ ВЫИГРАЛИ!', font=('Arial', 24, 'bold'),
-              bg='#d8e6de', fg='#000000').pack(pady=(10, 20))
-        Label(content, text=f"{self.steps} шагов", font=('Arial', 16),
-              bg='#d8e6de', fg='#000000').pack()
-        Button(content, text='OK', width=10, height=1,
-               bg='#cc5b3f', fg='white', font=('Arial', 10, 'bold'),
-               command=lambda: (
-                   add_record(level_num, nick_var, self.steps),
-                   self.exit_level(),
-                   self.win_root.destroy(),
-                   self.replace()
-               )).pack(pady=20)
-
-    # проверка столкновения со стенами
-    def check_collision(self, x1, y1, x2, y2):
-        for obj in self.static_objects:
-            wall_x1, wall_y1, wall_x2, wall_y2 = self.canvas.bbox(obj)
-            if not (x2 <= wall_x1 or x1 >= wall_x2 or y2 <= wall_y1 or y1 >= wall_y2):
-                return True
-        return False
-
-    # проверка столкновения с ящиками
-    def check_box_collision(self, current_box, x1, y1, all_boxes):
-        for box in all_boxes:
-            if box == current_box:
-                continue
-            box_x1, box_y1, box_x2, box_y2 = self.canvas.bbox(box)
-            if not (x1 + 50 <= box_x1 or x1 >= box_x2 or y1 + 50 <= box_y1 or y1 >= box_y2):
-                return True
-        return False
-
-    #сброс уровня
-    def replace(self):
-        self.steps = 0
-        self.steps_label.config(text=f"{self.steps}")
-
-        # Включение кнопок и привязка клавиш
-        for child in self.master.winfo_children():
-            if isinstance(child, Button):
-                child.config(state=NORMAL)
-
-        self.master.bind("<KeyPress>", self.move)
-
-    #Метод для выхода с уровня, должен быть переопределен в дочерних классах
-    def exit_level(self):
-        pass
-
-    #Метод для движения, должен быть переопределен в дочерних классах
-    def move(self, event):
-        dx, dy = 0, 0
-        if event.keysym == 'Left':
-            dx = -50
-        elif event.keysym == 'Right':
-            dx = 50
-        elif event.keysym == 'Up':
-            dy = -50
-        elif event.keysym == 'Down':
-            dy = 50
-
-    #Метод для проверки победы, должен быть переопределен в дочерних классах
-    def win_check(self):
-        pass
-
-
-class Level1(Basic_lvl):
-    def __init__(self, master):
-        super().__init__(master)
-        self.x1 = 150
-        self.y1 = 150
-
-        self.pers = self.canvas.create_image(self.x1, self.y1, image=self.pers_image, anchor='nw')
-
-        # Создание статических объектов (стен)
-        wall_positions = [
-            (0, 0), (50, 0), (100, 0), (150, 0), (200, 0), (250, 0), (300, 0), (350, 0),
-            (0, 50), (0, 100), (0, 150), (0, 200), (0, 250), (0, 300), (0, 350),
-            (350, 50), (350, 100), (350, 150), (350, 200), (350, 250), (350, 300), (350, 350),
-            (50, 350), (100, 350), (150, 350), (200, 350), (250, 350), (300, 350), (250, 300),
-            (250, 250), (250, 200), (250, 150), (150, 50), (100, 50), (50, 50)
-        ]
-
-        for x, y in wall_positions:
-            obj = self.canvas.create_image(x, y, image=self.static_obj_t, anchor='nw')
-            self.static_objects.append(obj)
-
-        # Создание подвижных объектов
-        self.move_object1 = self.canvas.create_image(200, 150, image=self.move_obj_t, anchor='nw')
-        self.move_object2 = self.canvas.create_image(100, 200, image=self.move_obj_t, anchor='nw')
-        self.move_object3 = self.canvas.create_image(100, 250, image=self.move_obj_t, anchor='nw')
-
-        # Позиции для ящиков (целевые точки)
-        self.position1 = self.canvas.create_rectangle(50, 150, 100, 200, dash=2)
-        self.position2 = self.canvas.create_rectangle(50, 250, 100, 300, dash=2)
-        self.position3 = self.canvas.create_rectangle(300, 300, 350, 350, dash=2)
-
-    def exit_level(self):
-        exit_level1()
-
-    def win_check(self):
-        # Получаем координаты всех ящиков и позиций
-        boxes = [
-            self.canvas.coords(self.move_object1),
-            self.canvas.coords(self.move_object2),
-            self.canvas.coords(self.move_object3)
-        ]
-
-        positions = [
-            self.canvas.coords(self.position1),
-            self.canvas.coords(self.position2),
-            self.canvas.coords(self.position3)
-        ]
-
-        # Проверяем, находится ли каждый ящик на какой-либо позиции
-        count_boxes = 0
-
-        for i, box in enumerate(boxes):
-            box_x, box_y = box[0], box[1]
-            for pos in positions:
-                pos_x, pos_y = pos[0], pos[1]
-                if abs(box_x - pos_x) < 5 and abs(box_y - pos_y) < 5:
-                    count_boxes += 1
-                    break
-
-        # Если все три ящика на своих местах
-        if count_boxes == 3:
-            self.show_win_window(1, nick_level1)
-
-    def move(self, event):
-        global nick_level1
-        if nick_level1 is None or nick_level1 == "":
-            messagebox.showwarning('Внимание', 'Введите сначала никнейм!')
-            return
-
-        dx, dy = 0, 0
-        if event.keysym == 'Left':
-            dx = -50
-        elif event.keysym == 'Right':
-            dx = 50
-        elif event.keysym == 'Up':
-            dy = -50
-        elif event.keysym == 'Down':
-            dy = 50
-
-        # Новая позиция игрока
-        x, y = self.canvas.coords(self.pers)
-        new_x = x + dx
-        new_y = y + dy
-
-        # Проверяем столкновение со стенами
-        if self.check_collision(new_x, new_y, new_x + 50, new_y + 50):
-            return
-
-        # Проверяем возможность движения ящиков
-        moved_boxes = []
-        boxes = [self.move_object1, self.move_object2, self.move_object3]
-
-        for box in boxes:
-            box_x, box_y = self.canvas.coords(box)[:2]
-            if abs(box_x - new_x) < 5 and abs(box_y - new_y) < 5:
-                new_box_x = box_x + dx
-                new_box_y = box_y + dy
-                if (not self.check_collision(new_box_x, new_box_y, new_box_x + 50, new_box_y + 50) and
-                        not self.check_box_collision(box, new_box_x, new_box_y, boxes)):
-                    self.canvas.move(box, dx, dy)
-                    if dx != 0 or dy != 0:
-                        play_pushing_box()
-                    moved_boxes.append(box)
-                else:
-                    return
-
-        # Двигаем персонажа и одновременно воспроизводим звук
-        self.canvas.move(self.pers, dx, dy)
-        if dx != 0 or dy != 0:
-            play_step_sound()
-            self.steps += 1
-            self.steps_label.config(text=f"{self.steps}")
-
-        self.win_check()
-
-    def replace(self):
-        super().replace()
-        # Сброс позиции персонажа
-        self.canvas.coords(self.pers, self.x1, self.y1)
-
-        # Сброс позиций ящиков
-        self.canvas.coords(self.move_object1, 200, 150)
-        self.canvas.coords(self.move_object2, 100, 200)
-        self.canvas.coords(self.move_object3, 100, 250)
-
-
-class Level2(Basic_lvl):
-    def __init__(self, master):
-        super().__init__(master)
-        self.x1 = 150
-        self.y1 = 150
-
-        self.pers = self.canvas.create_image(self.x1, self.y1, image=self.pers_image, anchor='nw')
-
-        wall_positions = [(0, 0), (50, 0), (100, 0), (150, 0), (200, 0),
-                          (250, 0), (300, 0), (350, 0), (350, 50), (350, 100),
-                          (350, 150), (350, 200), (350, 250), (350, 300), (350, 350),
-                          (250, 350), (300, 350), (150, 350), (200, 350), (50, 350),
-                          (100, 350), (0, 350), (0, 300), (0, 250), (0, 200), (0, 150),
-                          (0, 100), (0, 50), (150, 50), (200, 50), (250, 50), (300, 50),
-                          (200, 150), (200, 200), (150, 200), (250, 300), (300, 300)]
-
-        for x, y in wall_positions:
-            obj = self.canvas.create_image(x, y, image=self.static_obj_t, anchor='nw')
-            self.static_objects.append(obj)
-
-        self.move_block1 = self.canvas.create_image(150, 100, image=self.move_obj_t, anchor='nw')
-        self.move_block2 = self.canvas.create_image(250, 150, image=self.move_obj_t, anchor='nw')
-        self.move_block3 = self.canvas.create_image(100, 150, image=self.move_obj_t, anchor='nw')
-        self.move_block4 = self.canvas.create_image(150, 250, image=self.move_obj_t, anchor='nw')
-
-        self.position1 = self.canvas.create_rectangle(300, 100, 350, 150, outline='#464645', dash=2)
-        self.position2 = self.canvas.create_rectangle(50, 50, 100, 100, outline='#464645', dash=2)
-        self.position3 = self.canvas.create_rectangle(250, 100, 300, 150, outline='#464645', dash=2)
-        self.position4 = self.canvas.create_rectangle(150, 300, 200, 350, outline='#464645', dash=2)
-
-    def exit_level(self):
-        exit_level2()
-
-    def win_check(self):
-        # Получаем координаты всех позиций для ящиков
-        positions = [
-            self.canvas.coords(self.position1),
-            self.canvas.coords(self.position2),
-            self.canvas.coords(self.position3),
-            self.canvas.coords(self.position4)
-        ]
-
-        # Получаем координаты всех ящиков
-        boxes = [
-            self.canvas.coords(self.move_block1),
-            self.canvas.coords(self.move_block2),
-            self.canvas.coords(self.move_block3),
-            self.canvas.coords(self.move_block4)
-        ]
-
-        count_boxes = 0
-
-        for i, box in enumerate(boxes):
-            box_x, box_y = box[0], box[1]
-            for pos in positions:
-                pos_x, pos_y = pos[0], pos[1]
-                if abs(box_x - pos_x) < 5 and abs(box_y - pos_y) < 5:
-                    count_boxes += 1
-                    break
-
-        # Если все 4 ящика на своих местах
-        if count_boxes == 4:
-            self.show_win_window(2, nick_level2)
-
-    def move(self, event):
-        global nick_level2
-        if nick_level2 is None or nick_level2 == "":
-            messagebox.showwarning('Внимание', 'Введите сначала никнейм!')
-            return
-        dx, dy = 0, 0
-        if event.keysym == 'Left':
-            dx = -50
-        elif event.keysym == 'Right':
-            dx = 50
-        elif event.keysym == 'Up':
-            dy = -50
-        elif event.keysym == 'Down':
-            dy = 50
-
-        # Новая позиция игрока
-        x, y = self.canvas.coords(self.pers)
-        new_x = x + dx
-        new_y = y + dy
-
-        # Проверяем столкновение со стенами
-        if self.check_collision(new_x, new_y, new_x + 50, new_y + 50):
-            return
-
-        moved_boxes = []
-        boxes = [self.move_block1, self.move_block2, self.move_block3, self.move_block4]
-
-        for box in boxes:
-            box_x, box_y = self.canvas.coords(box)[:2]
-            if abs(box_x - new_x) < 5 and abs(box_y - new_y) < 5:
-                new_box_x = box_x + dx
-                new_box_y = box_y + dy
-
-                # Проверяем, может ли ящик двигаться
-                if (not self.check_collision(new_box_x, new_box_y, new_box_x + 50, new_box_y + 50) and
-                        not self.check_box_collision(box, new_box_x, new_box_y, boxes)):
-                    self.canvas.move(box, dx, dy)
-                    moved_boxes.append(box)
-                    if dx != 0 or dy != 0:
-                        play_pushing_box()
-                else:
-                    return  # Не можем двигать ящик, значит и персонаж не двигается
-
-        # Двигаем персонажа
-        self.canvas.move(self.pers, dx, dy)
-        if dx != 0 or dy != 0:
-            play_step_sound()
-            self.steps += 1
-            self.steps_label.config(text=f"{self.steps}")
-
-        self.win_check()
-
-    def replace(self):
-        super().replace()
-        # Сброс позиции персонажа
-        self.canvas.coords(self.pers, self.x1, self.y1)
-
-        # Сброс позиций ящиков
-        self.canvas.coords(self.move_block1, 150, 100)
-        self.canvas.coords(self.move_block2, 250, 150)
-        self.canvas.coords(self.move_block3, 100, 150)
-        self.canvas.coords(self.move_block4, 150, 250)
-
-
-class Level3(Basic_lvl):
-    def __init__(self, master):
-        super().__init__(master)
-        self.x1 = 50
-        self.y1 = 50
-
-        self.pers = self.canvas.create_image(self.x1, self.y1, image=self.pers_image, anchor='nw')
-
-        wall_positions = [(0, 0), (50, 0), (100, 0), (150, 0), (200, 0),
-                          (250, 0), (300, 0), (350, 0), (350, 50), (350, 100),
-                          (350, 150), (350, 200), (350, 250), (350, 300), (350, 350),
-                          (250, 350), (300, 350), (150, 350), (200, 350), (50, 350),
-                          (100, 350), (0, 350), (0, 300), (0, 250), (0, 200), (0, 150),
-                          (0, 100), (0, 50), (0, 100), (100, 300), (100, 250), (200, 50),
-                          (250, 50), (300, 50), (200, 100), (250, 100), (300, 100), (300, 300)]
-
-        for x, y in wall_positions:
-            obj = self.canvas.create_image(x, y, image=self.static_obj_t, anchor='nw')
-            self.static_objects.append(obj)
-
-        self.move_block1 = self.canvas.create_image(100, 100, image=self.move_obj_t, anchor='nw')
-        self.move_block2 = self.canvas.create_image(100, 150, image=self.move_obj_t, anchor='nw')
-        self.move_block3 = self.canvas.create_image(150, 100, image=self.move_obj_t, anchor='nw')
-        self.move_block4 = self.canvas.create_image(200, 200, image=self.move_obj_t, anchor='nw')
-        self.move_block5 = self.canvas.create_image(200, 250, image=self.move_obj_t, anchor='nw')
-        self.move_block6 = self.canvas.create_image(250, 250, image=self.move_obj_t, anchor='nw')
-
-        self.position1 = self.canvas.create_rectangle(50, 300, 100, 350, outline='#464645', dash=2)
-        self.position2 = self.canvas.create_rectangle(150, 150, 200, 200, outline='#464645', dash=2)
-        self.position3 = self.canvas.create_rectangle(200, 150, 250, 200, outline='#464645', dash=2)
-        self.position4 = self.canvas.create_rectangle(150, 300, 200, 350, outline='#464645', dash=2)
-        self.position5 = self.canvas.create_rectangle(300, 200, 350, 250, outline='#464645', dash=2)
-        self.position6 = self.canvas.create_rectangle(300, 250, 350, 300, outline='#464645', dash=2)
-
-    def exit_level(self):
-        exit_lvl3()
-
-    def win_check(self):
-        # Получаем координаты всех позиций для ящиков
-        positions = [
-            self.canvas.coords(self.position1),
-            self.canvas.coords(self.position2),
-            self.canvas.coords(self.position3),
-            self.canvas.coords(self.position4),
-            self.canvas.coords(self.position5),
-            self.canvas.coords(self.position6)
-        ]
-
-        # Получаем координаты всех ящиков
-        boxes = [
-            self.canvas.coords(self.move_block1),
-            self.canvas.coords(self.move_block2),
-            self.canvas.coords(self.move_block3),
-            self.canvas.coords(self.move_block4),
-            self.canvas.coords(self.move_block5),
-            self.canvas.coords(self.move_block6)
-        ]
-
-        # Проверяем, сколько ящиков находятся на своих местах
-        correct_boxes = 0
-
-        for box in boxes:
-            box_x, box_y = box[0], box[1]
-            for pos in positions:
-                pos_x, pos_y = pos[0], pos[1]
-                if abs(box_x - pos_x) < 5 and abs(box_y - pos_y) < 5:
-                    correct_boxes += 1
-                    break
-
-        # Если все 6 ящиков на своих местах
-        if correct_boxes == 6:
-            self.show_win_window(3, nick_level3)
-
-    def move(self, event):
-        global nick_level3
-        if nick_level3 is None or nick_level3 == "":
-            messagebox.showwarning('Внимание', 'Введите сначала никнейм!')
-            return
-        dx, dy = 0, 0
-        if event.keysym == 'Left':
-            dx = -50
-        elif event.keysym == 'Right':
-            dx = 50
-        elif event.keysym == 'Up':
-            dy = -50
-        elif event.keysym == 'Down':
-            dy = 50
-
-        # Новая позиция игрока
-        x, y = self.canvas.coords(self.pers)
-        new_x = x + dx
-        new_y = y + dy
-
-        # Проверяем столкновение со стенами
-        if self.check_collision(new_x, new_y, new_x + 50, new_y + 50):
-            return
-
-        moved_boxes = []
-        boxes = [self.move_block1, self.move_block2, self.move_block3,
-                 self.move_block4, self.move_block5, self.move_block6]
-
-        for box in boxes:
-            box_x, box_y = self.canvas.coords(box)[:2]
-            if abs(box_x - new_x) < 5 and abs(box_y - new_y) < 5:
-                new_box_x = box_x + dx
-                new_box_y = box_y + dy
-
-                # Проверяем, может ли ящик двигаться
-                if (not self.check_collision(new_box_x, new_box_y, new_box_x + 50, new_box_y + 50) and
-                        not self.check_box_collision(box, new_box_x, new_box_y, boxes)):
-                    self.canvas.move(box, dx, dy)
-                    if dx != 0 or dy != 0:
-                        play_pushing_box()
-                    moved_boxes.append(box)
-                else:
-                    return  # Не можем двигать ящик, значит и персонаж не двигается
-
-        # Двигаем персонажа
-        self.canvas.move(self.pers, dx, dy)
-        if dx != 0 or dy != 0:
-            play_step_sound()
-            self.steps += 1
-            self.steps_label.config(text=f"{self.steps}")
-
-        self.win_check()
-
-    def replace(self):
-        super().replace()
-        # Сброс позиции персонажа
-        self.canvas.coords(self.pers, self.x1, self.y1)
-
-        # Сброс позиций ящиков
-        self.canvas.coords(self.move_block1, 100, 100)
-        self.canvas.coords(self.move_block2, 100, 150)
-        self.canvas.coords(self.move_block3, 150, 100)
-        self.canvas.coords(self.move_block4, 200, 200)
-        self.canvas.coords(self.move_block5, 200, 250)
-        self.canvas.coords(self.move_block6, 250, 250)
-
 # Уровень 1
 lvl1 = Toplevel()
 lvl1.title('SOKOBAN')
@@ -999,6 +873,7 @@ lvl1.geometry('1000x700+230+20')
 lvl1.configure(bg='#d8e6de')
 lvl1.resizable(False, False)
 lvl1.protocol("WM_DELETE_WINDOW", close_all_windows)
+lvl1.bind("<Alt-F4>", lambda e: close_all_windows())
 
 Label(lvl1, text='Уровень 1',
       font=('Arial', 24),
@@ -1018,7 +893,7 @@ lvl2.geometry('1000x700+230+20')
 lvl2.configure(bg='#d8e6de')
 lvl2.resizable(False, False)
 lvl2.protocol("WM_DELETE_WINDOW", close_all_windows)
-
+lvl2.bind("<Alt-F4>", lambda e: close_all_windows())
 Label(lvl2, text='Уровень 2',
       font=('Arial', 24),
       background='#d8e6de',
@@ -1037,6 +912,7 @@ lvl3.geometry('1000x700+230+20')
 lvl3.configure(bg='#d8e6de')
 lvl3.resizable(False, False)
 lvl3.protocol("WM_DELETE_WINDOW", close_all_windows)
+lvl3.bind("<Alt-F4>", lambda e: close_all_windows())
 Label(lvl3, text='Уровень 3',
       font=('Arial', 24),
       background='#d8e6de',
