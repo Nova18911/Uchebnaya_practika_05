@@ -10,8 +10,8 @@ from playsound import playsound
 import os
 import sys
 
-audio_data = None
-sample_rate = None
+audio_data = None # аудиоданные
+sample_rate = None # частота дискретизации
 is_playing = False
 
 # Получает абсолютный путь для ресурсов в EXE
@@ -19,14 +19,14 @@ def resource_path(relative_path):
     try:
         base_path = sys._MEIPASS  # sys._MEIPASS (специальная папка PyInstaller для ресурсов в EXE)
     except AttributeError:
-        base_path = os.path.abspath(".")  # используем текущую директорию
+        base_path = os.path.abspath(".")
     path = os.path.join(base_path, relative_path) # соединение базового путя с относительным
     return path
 
 # Загрузка аудиофайла и возвращение данных и частоты дискретизации
 def load_audiofile(file_path):
     global audio_data, sample_rate
-    data, fs = sf.read(file_path, dtype='float32')
+    data, fs = sf.read(file_path)
     if len(data.shape) == 1:
         data = np.column_stack((data, data))
     audio_data = data
@@ -45,7 +45,6 @@ def play_audio(file_path=None):
     global is_playing
     if file_path:
         load_audiofile(file_path)
-
     if not is_playing and audio_data is not None:
         is_playing = True
         Thread(target=_play_loop, daemon=True).start()
@@ -72,7 +71,6 @@ def play_pushing_box():
     Thread(target=lambda: playsound(sound_pushing_box), daemon=True).start()
 
 
-# Открытие json файла
 def load_records():
     record_file = resource_path(os.path.join("records.json"))
     with open(record_file, 'r') as rec:
@@ -89,42 +87,43 @@ def save_records(records):
 def add_record(level, nickname, steps):
     records = load_records()
     level_key = f"level{level}"
+    records[level_key] = [record for record in records[level_key]
+                          if record["nickname"] != nickname]
     # Добавляем новый рекорд
     records[level_key].append({"nickname": nickname, "steps": steps})
-    # Сортируем по количеству шагов (чем меньше, тем лучше)
+    # Сортируем по количеству шагов
     records[level_key].sort(key=lambda x: x["steps"])
     # Оставляем только топ-3
     records[level_key] = records[level_key][:3]
     save_records(records)
     update_records_display()
 
+
 def update_records_display():
     records = load_records()
-    # Очищаем старые записи
-    for i in range(1, 4):
-        for j in range(1, 4):
-            canvas_r.delete(f"record_level{i}_pos{j}")
+    canvas_r.delete("record_text")
     # Добавляем новые записи
     for level in range(1, 4):
         level_key = f"level{level}"
         level_records = records.get(level_key, [])
-        for i, record in enumerate(level_records):
+        if level == 1:
+            x_pos = 190
+        elif level == 2:
+            x_pos = 520
+        else:
+            x_pos = 840
+
+        for i, record in enumerate(level_records[:3]):  # Берем только топ-3
             nickname = record["nickname"]
             steps = record["steps"]
-            # Позиционирование зависит от уровня
-            if level == 1:
-                x_pos = 190
-            elif level == 2:
-                x_pos = 520
-            else:
-                x_pos = 840
             y_pos = 220 + i * 100
-            # Отображаем запись
             canvas_r.create_text(
                 x_pos, y_pos + 25,
                 text=f"{nickname}: {steps} шагов",
                 font=('Arial', 12),
-                fill='#000000')
+                fill='#000000',
+                tags="record_text"
+            )
 
 # Основные функции игры
 def level_1():
@@ -133,7 +132,7 @@ def level_1():
     lvl1.deiconify()
     if nick_level1 is None:  # Если ник еще не введен
         input_nick(1)
-    if nick_level1:  # Если ник введен (не None и не пустая строка)
+    if nick_level1:  # Если ник введен
         nick_label1.config(text=f"Игрок: {nick_level1}")
         app1.replace()
 
@@ -223,7 +222,7 @@ def input_nick(level):
         if not nickname:
             messagebox.showerror("Ошибка", "Необходимо ввести никнейм!")
             return
-        if len(nickname) >= 10:
+        if len(nickname) > 10:
             messagebox.showerror("Ошибка", "Никнейм не должен превышать 10 символов!")
             return
         # Сохраняем ник для соответствующего уровня
@@ -317,25 +316,23 @@ class Basic_lvl:
         self.win_root.configure(bg='#d8e6de')
         self.win_root.overrideredirect(True)
         self.win_root.grab_set()
-        # Создаем рамку с тенью
         border_frame = Frame(self.win_root, bg='black', bd=3)
         border_frame.pack(fill='both', expand=True, padx=3, pady=3)
         main_frame = Frame(border_frame, bg='#d8e6de')
         main_frame.pack(fill='both', expand=True, padx=1, pady=1)
-        content = Frame(main_frame, bg='#d8e6de')
-        content.pack(fill='both', expand=True, padx=20, pady=20)
-        Label(content, text='ВЫ ВЫИГРАЛИ!', font=('Arial', 24, 'bold'),
-              bg='#d8e6de', fg='#000000').pack(pady=(10, 20))
-        Label(content, text=f"{self.steps} шагов", font=('Arial', 16),
+
+        Label(main_frame, text='ВЫ ВЫИГРАЛИ!', font=('Arial', 24, 'bold'),
+              bg='#d8e6de', fg='#000000').pack(pady=(20, 20))
+        Label(main_frame, text=f"{self.steps} шагов", font=('Arial', 16),
               bg='#d8e6de', fg='#000000').pack()
-        Button(content, text='OK', width=10, height=1,
+        Button(main_frame, text='OK', width=10, height=1,
                bg='#cc5b3f', fg='white', font=('Arial', 10, 'bold'),
                command=lambda: (
                    add_record(level_num, nick_var, self.steps),
                    self.exit_level(),
                    self.win_root.destroy(),
                    self.replace()
-               )).pack(pady=20)
+               )).pack(pady=30)
 
     # проверка столкновения со стенами
     def check_collision(self, x1, y1, x2, y2):
